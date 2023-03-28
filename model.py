@@ -98,3 +98,27 @@ validation_data = TensorDataset(validation_inputs, validation_masks, validation_
 validation_sampler = SequentialSampler(validation_data)
 validation_dataloader = DataLoader(validation_data, sampler=validation_sampler, batch_size=batch_size)
 
+### **Train Classification Model**
+from transformers import BertForSequenceClassification
+
+model = BertForSequenceClassification.from_pretrained("bert-base-uncased",
+                                                      num_labels= 14,
+                                                      output_attentions= False,
+                                                      output_hidden_states= False)
+model.cuda()
+
+#### **Optimizer and Learning rate Scheduler**
+
+from transformers import AdamW, BertConfig
+optimizer = AdamW(model.parameters(),
+                  lr= 2e-5,
+                  eps= 1e-8)
+
+from transformers import get_linear_schedule_with_warmup
+
+epochs= 30
+total_steps= len(train_dataloader) * epochs
+
+scheduler = get_linear_schedule_with_warmup(optimizer,
+                                            num_warmup_steps= 0,
+                                            num_training_steps= total_steps)
