@@ -67,3 +67,34 @@ for sent in input_ids:
 
     attention_mask = [int(token_id>0) for token_id in sent]
     attention_masks.append(attention_mask)
+
+### **Training and Validation Split**
+
+from sklearn.model_selection import train_test_split
+
+train_inputs, validation_inputs, train_labels, validation_labels = train_test_split(input_ids, labels_numerical, random_state=2022, test_size=0.1)
+
+train_masks, validation_masks, _, _ = train_test_split(attention_masks, labels_numerical, random_state=2022, test_size=0.1)
+
+#Converting to Pytorch Data Types
+
+train_inputs = torch.tensor(train_inputs)
+validation_inputs = torch.tensor(validation_inputs)
+
+train_labels = torch.tensor(train_labels)
+validation_labels = torch.tensor(validation_labels)
+
+train_masks = torch.tensor(train_masks)
+validation_masks = torch.tensor(validation_masks)
+
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
+
+batch_size = 16
+train_data = TensorDataset(train_inputs, train_masks, train_labels)
+train_sampler = RandomSampler(train_data)
+train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
+
+validation_data = TensorDataset(validation_inputs, validation_masks, validation_labels)
+validation_sampler = SequentialSampler(validation_data)
+validation_dataloader = DataLoader(validation_data, sampler=validation_sampler, batch_size=batch_size)
+
