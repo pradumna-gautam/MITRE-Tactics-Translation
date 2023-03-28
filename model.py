@@ -1,3 +1,21 @@
+gpu_info = !nvidia-smi
+gpu_info = '\n'.join(gpu_info)
+if gpu_info.find('failed') >= 0:
+  print('Not connected to a GPU')
+else:
+  print(gpu_info)
+
+from torch.cuda import is_available
+import torch
+
+if torch.cuda.is_available():
+    
+    device = torch.device("cuda")
+    print(f"There are {torch.cuda.device_count()} GPU(s) available")
+    print("GPU: ", torch.cuda.get_device_name(0))
+    
+
+
 import pandas as pd
 
 train_df = pd.read_csv('/content/drive/My Drive/Datasets/MITRE_unique_train.csv')
