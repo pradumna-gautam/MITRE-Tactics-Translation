@@ -131,3 +131,124 @@ pd.set_option('display.precision', 2)
 df_stats = pd.DataFrame(data=training_stats)
 df_stats = df_stats.set_index('epoch')
 df_stats
+
+## **Performance on the Test Set**
+#**Data Preparation**
+
+import pandas as pd
+
+test_df = pd.read_csv('/content/drive/My Drive/Datasets/MITRE_unique_test.csv')
+
+print('Number of test sentences: {:,}\n'.format(test_df.shape[0]))
+
+test_sentences = test_df['MITRE Descriptions'].values
+labels_test = test_df.Primary.values
+from datasets import ClassLabel
+
+c2lt = ClassLabel(num_classes=14, names=['COLLECTION',
+                                        'COMMAND_AND_CONTROL',
+                                        'CREDENTIAL_ACCESS',
+                                        'DEFENSE_EVASION',
+                                        'DISCOVERY',
+                                        'EXECUTION',
+                                        'EXFILTRATION',
+                                        'IMPACT',
+                                        'INITIAL_ACCESS',
+                                        'LATERAL_MOVEMENT',
+                                        'PERSISTENCE',
+                                        'PRIVILEGE_ESCALATION',
+                                        'RECONNAISSANCE',
+                                        'RESOURCE_DEVELOPMENT'])
+
+test_labels_numerical = [c2lt.str2int(label) for label in labels_test]
+
+input_ids = []
+attention_masks = []
+
+for sent in test_sentences:
+    encoded_dict = tokenizer.encode_plus(
+                        sent,                      # Sentence to encode.
+                        add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                        max_length = 128,           # Pad & truncate all sentences.
+                        pad_to_max_length = True,
+                        return_attention_mask = True,   # Construct attn. masks.
+                        return_tensors = 'pt',     # Return pytorch tensors.
+                   )
+      
+    input_ids.append(encoded_dict['input_ids'])
+    
+    attention_masks.append(encoded_dict['attention_mask'])
+
+
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+labels = torch.tensor(test_labels_numerical)
+
+batch_size = 16  
+
+prediction_data = TensorDataset(input_ids, attention_masks, labels)
+prediction_sampler = SequentialSampler(prediction_data)
+prediction_dataloader = DataLoader(prediction_data, sampler=prediction_sampler, batch_size=batch_size)
+
+#**Evaluate on Test set**
+
+print('Predicting labels for {:,} test sentences...'.format(len(input_ids)))
+
+model.eval()
+
+
+predictions , true_labels = [], []
+
+
+for batch in prediction_dataloader:
+
+  batch = tuple(t.to(device) for t in batch)
+  
+
+  b_input_ids, b_input_mask, b_labels = batch
+  
+  with torch.no_grad():
+
+      result = model(b_input_ids, 
+                     token_type_ids=None, 
+                     attention_mask=b_input_mask,
+                     return_dict=True)
+
+  logits = result.logits
+  logits = logits.detach().cpu().numpy()
+  label_ids = b_labels.to('cpu').numpy()
+  
+  predictions.append(logits)
+  true_labels.append(label_ids)
+
+print('    DONE.')
+
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report 
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import *
+
+accuracy_set = []
+cls_report = []
+
+for i in range(len(true_labels)):
+  
+  pred_labels_i = np.argmax(predictions[i], axis=1).flatten()
+  
+  acc = accuracy_score(true_labels[i], pred_labels_i)
+  report = classification_report(true_labels[i], pred_labels_i)                
+  accuracy_set.append(acc)
+  cls_report.append(report)
+  
+  flat_predictions = np.concatenate(predictions, axis=0)
+print(flat_predictions[:3])
+flat_predictions = np.argmax(flat_predictions, axis=1).flatten()
+
+flat_true_labels = np.concatenate(true_labels, axis=0)
+
+acc = accuracy_score(flat_true_labels, flat_predictions)
+rep = classification_report(flat_true_labels, flat_predictions, target_names =['COLLECTION','COMMAND_AND_CONTROL','CREDENTIAL_ACCESS','DEFENSE_EVASION','DISCOVERY','EXECUTION','EXFILTRATION','IMPACT','INITIAL_ACCESS','LATERAL_MOVEMENT','PERSISTENCE','PRIVILEGE_ESCALATION','RECONNAISSANCE','RESOURCE_DEVELOPMENT'])
+#cab = label_ranking_loss(flat_true_labels,flat_predictions)
+print('Total Acc: %.3f' % acc)
+print(rep)
+#print(cab)
